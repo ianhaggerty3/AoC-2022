@@ -56,6 +56,8 @@ fn sim_fall(piece: Vec<(u64, u64)>, map: &Vec<(u64, u64)>, settled: &mut bool) -
     }
 }
 
+
+
 fn add_piece(piece: Vec<(u64, u64)>, map: &mut Vec<(u64, u64)>, heights: &mut Vec<u64>, max_height: &mut u64) {
     for location in piece {
         map.insert(0, location);
@@ -101,6 +103,7 @@ pub fn part_one(input: &str) -> Option<u64> {
     let mut absolute_index: u64 = 0;
     let mut last_min: u64 = 0;
     let mut historic_height: Vec<u64> = Vec::new();
+    let mut confidence_level = 0;
 
     for shape in shapes.iter().cycle().take(2022) {
         let mut settled = false;
@@ -110,27 +113,33 @@ pub fn part_one(input: &str) -> Option<u64> {
         while !settled {
             current_shape = sim_push(current_shape, moves.next().unwrap(), &map);
             current_shape = sim_fall(current_shape, &map, &mut settled);
+            move_index = (move_index + 1) % moves_length;
         }
 
         add_piece(current_shape, &mut map, &mut heights, &mut max_height);
         let rel_heights = get_rel_heights(&heights);
         if seen_map.contains_key(&(move_index, shape_index, rel_heights)) {
-            let old_index = seen_map[&(move_index, shape_index, rel_heights)].0;
-            let old_height = seen_map[&(move_index, shape_index, rel_heights)].1;
-            println!("found a cycle from index = {} to index = {}", old_index, absolute_index);
-            println!("found a cycle from height = {} to height = {}", old_height, max_height);
-            let target = 2022 - 1;
-            let index_diff = absolute_index - old_index;
-            let height_diff = max_height - old_height;
-            let remaining = target - absolute_index;
-            let cycles_remaining = remaining / index_diff;
-            let cycles_height = cycles_remaining * height_diff;
-            let remainder_index = old_index + (remaining % index_diff);
-            let remainder_height = historic_height[remainder_index as usize] - old_height;
-            println!("remainder len = {}", remaining % index_diff);
-            println!("adding {} height from remaining cycles and a {} height remainder", cycles_height, remainder_height);
-            
-            return Some(max_height + cycles_height + remainder_height);
+            confidence_level += 1;
+            if confidence_level > 5 {
+                let old_index = seen_map[&(move_index, shape_index, rel_heights)].0;
+                let old_height = seen_map[&(move_index, shape_index, rel_heights)].1;
+                println!("found a cycle from index = {} to index = {}", old_index, absolute_index);
+                println!("found a cycle from height = {} to height = {}", old_height, max_height);
+                let target = 2022 - 1;
+                let index_diff = absolute_index - old_index;
+                let height_diff = max_height - old_height;
+                let remaining = target - absolute_index;
+                let cycles_remaining = remaining / index_diff;
+                let cycles_height = cycles_remaining * height_diff;
+                let remainder_index = old_index + (remaining % index_diff);
+                let remainder_height = historic_height[remainder_index as usize] - old_height;
+                println!("remainder len = {}", remaining % index_diff);
+                println!("adding {} height from remaining cycles and a {} height remainder", cycles_height, remainder_height);
+
+                return Some(max_height + cycles_height + remainder_height);
+            }
+        } else {
+            confidence_level = 0;
         }
         seen_map.insert((move_index, shape_index, rel_heights), (absolute_index, max_height));
         move_index = (move_index + 1) % moves_length;
@@ -175,6 +184,21 @@ fn clean_map(map: Vec<(u64, u64)>, heights: &Vec<u64>, last_min: &mut u64) -> Ve
     map
 }
 
+fn print_topography(map: &Vec<(u64, u64)>, heights: &Vec<u64>) {
+    let start = heights.iter().max().unwrap();
+    let finish = heights.iter().min().unwrap();
+    for i in (finish.clone()..(start.clone() + 1)).rev() {
+        for j in 0..7 {
+            if map.contains(&(j, i)) {
+                print!("#");
+            } else {
+                print!(".");
+            }
+        }
+        println!();
+    }
+}
+
 pub fn part_two(input: &str) -> Option<u64> {
     let mut map: Vec<(u64, u64)> = Vec::from([(0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (6, 0)]);
     let mut shapes: Vec<Vec<(u64, u64)>> = Vec::new();
@@ -208,6 +232,7 @@ pub fn part_two(input: &str) -> Option<u64> {
     let mut absolute_index: u64 = 0;
     let mut last_min: u64 = 0;
     let mut historic_height: Vec<u64> = Vec::new();
+    let mut confidence_level = 0;
 
     for shape in shapes.iter().cycle().take(1000000000000) {
         let mut settled = false;
@@ -217,35 +242,53 @@ pub fn part_two(input: &str) -> Option<u64> {
         while !settled {
             current_shape = sim_push(current_shape, moves.next().unwrap(), &map);
             current_shape = sim_fall(current_shape, &map, &mut settled);
+            move_index = (move_index + 1) % moves_length;
         }
 
         add_piece(current_shape, &mut map, &mut heights, &mut max_height);
+        if (absolute_index == 317) {
+            println!("original");
+            print_topography(&map, &heights);
+            println!("");
+        }
+
         let rel_heights = get_rel_heights(&heights);
         if seen_map.contains_key(&(move_index, shape_index, rel_heights)) {
-            let old_index = seen_map[&(move_index, shape_index, rel_heights)].0;
-            let old_height = seen_map[&(move_index, shape_index, rel_heights)].1;
-            println!("found a cycle from index = {} to index = {}", old_index, absolute_index);
-            println!("found a cycle from height = {} to height = {}", old_height, max_height);
-            let target = 1_000_000_000_000 - 1;
-            let index_diff = absolute_index - old_index;
-            let height_diff = max_height - old_height;
-            let remaining = target - absolute_index;
-            let cycles_remaining = remaining / index_diff;
-            let cycles_height = cycles_remaining * height_diff;
-            let remainder_index = old_index + (remaining % index_diff);
-            let remainder_height = historic_height[remainder_index as usize] - old_height;
-            println!("remainder len = {}", remaining % index_diff);
-            println!("adding {} height from remaining cycles and a {} height remainder", cycles_height, remainder_height);
+            confidence_level += 1;
+            if confidence_level > 100 {
+                print_topography(&map, &heights);
+                println!("shape index = {}, move index = {}", shape_index, move_index);
 
+                let old_index = seen_map[&(move_index, shape_index, rel_heights)].0;
+                let old_height = seen_map[&(move_index, shape_index, rel_heights)].1;
+                println!("found a cycle from index = {} to index = {}", old_index, absolute_index);
+                println!("found a cycle from height = {} to height = {}", old_height, max_height);
+                let target = 1_000_000_000_000 - 1;
+                let index_diff = absolute_index - old_index;
+                let height_diff = max_height - old_height;
+                let remaining = target - absolute_index;
+                let cycles_remaining = remaining / index_diff;
+                let cycles_height = cycles_remaining * height_diff;
+                let remainder_index = old_index + (remaining % index_diff);
+                let remainder_height = historic_height[remainder_index as usize] - old_height;
 
-            return Some(max_height + cycles_height + remainder_height);
+                assert_eq!(historic_height[(absolute_index - index_diff) as usize], old_height);
+                println!("remainder len = {}", remaining % index_diff);
+                println!("adding {} height from remaining cycles and a {} height remainder", cycles_height, remainder_height);
+
+                return Some(max_height + cycles_height + remainder_height);
+            }
+        } else {
+            if confidence_level > 0 {
+                println!("thought I had one, but resetting");
+            }
+            confidence_level = 0;
         }
         seen_map.insert((move_index, shape_index, rel_heights), (absolute_index, max_height));
-        move_index = (move_index + 1) % moves_length;
         shape_index = (shape_index + 1) % 5;
         absolute_index += 1;
 
-        if absolute_index % 100 == 0 {
+        if absolute_index % 100 == 0 && confidence_level == 0 {
             map = clean_map(map, &heights, &mut last_min);
         }
         historic_height.push(max_height);
