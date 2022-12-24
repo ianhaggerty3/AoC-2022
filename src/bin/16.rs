@@ -8,16 +8,14 @@ fn parse_line(line: &str, options_map: &mut HashMap<String, Vec<String>>, flow_m
     let nexts: Vec<&str> = parsed.2.split(", ").collect();
     options_map.insert(parsed.0.clone().to_owned(), nexts.iter().map(|item| item.clone().to_owned() ).collect());
     flow_map.insert(parsed.0.clone().to_owned(), parsed.1);
-    // println!("{:?}", nexts);
-    // println!("{:?}", options_map);
 }
 
-fn get_best_option(options: &HashSet<(String, u32)>, costs: &HashMap<(String, u32), i32>) -> (String, u32) {
+fn get_best_flow_option(options: &HashSet<(String, u32)>, costs: &HashMap<(String, u32), i32>) -> (String, u32) {
     let mut best_option = ("".clone().to_owned(), 0);
     let mut best_option_cost = i32::MAX;
 
     for option in options {
-        let current_cost = costs.get(&option).cloned().unwrap();
+        let current_cost = costs.get(option).cloned().unwrap();
         if current_cost < best_option_cost {
             best_option_cost = current_cost;
             best_option = option.clone().to_owned();
@@ -27,98 +25,154 @@ fn get_best_option(options: &HashSet<(String, u32)>, costs: &HashMap<(String, u3
     best_option
 }
 
-fn is_end(node: &(String, u32)) -> bool {
-    node.1 == 30
+fn get_pieces(node: &(String, u32)) -> Vec<&str> {
+    let key = &node.0;
+    (0..(node.0.len() / 2))
+        .map(|i| { &key[(2*i)..(2*i)+2] }).collect()
 }
 
-fn check_previous(node: &(String, u32), previous: &HashMap<(String, u32), (String, u32)>) -> bool {
-    let problem_node = node.0.clone() + "'";
+fn get_pieces_str(key: &String) -> Vec<&str> {
+    (0..(key.len() / 2))
+        .map(|i| { &key[(2*i)..(2*i)+2] }).collect()
+}
 
-    let mut current = node;
-    while previous.contains_key(current) {
-        current = &previous[current];
-        if current.0 == problem_node {
-            println!("already visited {}", node.0);
-            return true;
+fn check_valid(key: &String) -> bool {
+    let pieces = get_pieces_str(key);
+    let new_val = pieces[pieces.len() - 1].clone().to_owned();
+    for i in 0..(pieces.len() - 1) {
+        if new_val.eq(pieces[i]) {
+            return false;
         }
     }
 
-    false
+    true
 }
 
-fn get_neighbors(node: &(String, u32), map: &HashMap<String, Vec<String>>, previous: &HashMap<(String, u32), (String, u32)>) -> Vec<(String, u32)> {
+fn get_neighbors(node: &(String, u32), map: &HashMap<String, Vec<(String, u32)>>) -> Vec<(String, u32)> {
     let mut ret: Vec<(String, u32)> = Vec::new();
+    let pieces = get_pieces(node);
+    let node_key = pieces[pieces.len() - 1].clone().to_owned();
 
-    if !check_previous(node, previous) && !node.0.contains("'") {
-        ret.push((node.0.clone() + "'", node.1 + 1));
-    }
-
-    let cleaned_node = node.0.clone().replace("'", "");
-
-    for connected in &map[&cleaned_node] {
-        ret.push(((connected.clone(), node.1 + 1)))
+    for connected in &map[&node_key] {
+        let mut new_key = node.0.clone();
+        new_key.push_str(&connected.0);
+        if check_valid(&new_key) {
+            if node.1 + connected.1 < 30 {
+                ret.push((new_key, node.1 + connected.1));
+            }
+        }
     }
 
     ret
 }
 
 fn get_cost(node: &(String, u32), flow_map: &HashMap<String, u32>) -> i32 {
-    if !node.0.contains("'") {
-        return 0;
-    }
-
-    let cleaned_node = node.0.clone().replace("'", "");
-    let flow_rate = flow_map[&cleaned_node];
+    let pieces = get_pieces(node);
+    let node_key = pieces[pieces.len() - 1].clone().to_owned();
+    // println!("getting cost of {:?}", node);
+    // println!("looking for key {} in flow_map", node_key);
+    let flow_rate = flow_map[&node_key];
 
     -(flow_rate as i32 * (30 - node.1) as i32)
 }
 
-fn search(start: String, map: &HashMap<String, Vec<String>>, flow_map: &HashMap<String, u32>) -> i32 {
+fn search(start: String, map: &HashMap<String, Vec<(String, u32)>>, flow_map: &HashMap<String, u32>) -> i32 {
     let mut open_set: HashSet<(String, u32)> = HashSet::new();
-    let mut previous: HashMap<(String, u32), (String, u32)> = HashMap::new();
     let mut actual_cost: HashMap<(String, u32), i32> = HashMap::new();
-    open_set.insert((start.clone(), 1));
-    actual_cost.insert((start.clone(), 1), 0);
+    let mut best_path_flow = 0;
+    let mut best_path_node = ("".to_owned(), 0);
+    open_set.insert((start.clone(), 0));
+    actual_cost.insert((start.clone(), 0), 0);
 
     while !open_set.is_empty() {
-        let current = get_best_option(&open_set, &actual_cost);
+        let current = get_best_flow_option(&open_set, &actual_cost);
         open_set.remove(&current);
-        if is_end(&current) {
-            println!("found end, {}, {}", current.0, current.1);
-            let mut prev = &current;
-            while previous.contains_key(prev) {
-                prev = &previous[prev];
-                println!("before that {}, {}", prev.0, prev.1);
-            }
 
-            return actual_cost.get(&current).unwrap().clone();
-        }
-
-        for neighbor in get_neighbors(&current, map, &previous) {
+        for neighbor in get_neighbors(&current, map) {
+            // println!("got neighbor {:?} for current {:?}", neighbor, current);
             let new_actual_cost = actual_cost.get(&current).unwrap() + get_cost(&neighbor, flow_map);
             if new_actual_cost < actual_cost.get(&neighbor).cloned().unwrap_or(i32::MAX) {
-                if neighbor.0.contains("'") {
-                    println!("turning on {} on turn {}", neighbor.0, neighbor.1)
-                }
                 actual_cost.insert(neighbor.clone(), new_actual_cost);
                 open_set.insert(neighbor.clone());
-                previous.insert(neighbor.clone(), current.clone());
+                if new_actual_cost < best_path_flow {
+                    best_path_flow = new_actual_cost;
+                    best_path_node = neighbor.clone();
+                }
             }
         }
     }
 
-    panic!("end not found");
+    println!("{:?}", best_path_node);
+
+    -best_path_flow
+}
+
+fn get_best_option(open_set: &HashSet<String>, distance: &HashMap<String, u32>) -> String {
+    open_set.iter().min_by(|a, b| distance[a.clone()].clone().cmp(&distance[b.clone()].clone())).unwrap().clone()
+}
+
+fn search_dist(start: &String, end: &String, map: &HashMap<String, Vec<String>>) -> u32 {
+    let mut distance: HashMap<String, u32> = HashMap::new();
+    let mut open_set: HashSet<String> = HashSet::new();
+    open_set.insert(start.clone());
+    distance.insert(start.clone(), 0);
+
+    while !open_set.is_empty() {
+        let current = get_best_option(&open_set, &distance);
+        open_set.remove(&current);
+        if current.clone() == end.clone() {
+            return distance[&current] + 1;
+        }
+
+        let neighbors = &map[&current];
+        for neighbor in neighbors {
+            let mut new_cost = distance[&current] + 1;
+            if new_cost < distance.get(neighbor).cloned().unwrap_or(u32::MAX) {
+                distance.insert(neighbor.clone(), new_cost);
+                open_set.insert(neighbor.clone());
+            }
+        }
+    }
+    panic!("no path found");
 }
 
 pub fn part_one(input: &str) -> Option<i32> {
     let mut options_map: HashMap<String, Vec<String>> = HashMap::new();
     let mut flow_map: HashMap<String, u32> = HashMap::new();
+    let mut start = "";
 
-    for line in input.lines() {
+
+    for (i, line) in input.lines().enumerate() {
         parse_line(line, &mut options_map, &mut flow_map);
+        if i == 0 {
+            let parts: Vec<&str> = line.split(" ").collect();
+            start = parts[1];
+        }
     }
 
-    Some(search("VN".to_owned(), &options_map, &flow_map))
+    let viable_options: HashSet<String> = options_map.iter()
+        .filter(|option| flow_map[option.0] != 0)
+        .map(|option| option.0.clone()).collect();
+
+    let mut viable_paths: HashMap<String, Vec<(String, u32)>> = HashMap::new();
+
+    viable_paths.insert(start.to_owned(), Vec::new());
+    for option in &viable_options {
+        viable_paths.insert(option.clone(), Vec::new());
+        viable_paths.get_mut(start).unwrap().push((option.clone(), search_dist(&start.to_owned(), option, &options_map)));
+        for other in &viable_options {
+            if option == other {
+                continue;
+            }
+            viable_paths.get_mut(option).unwrap().push((other.clone(), search_dist(option, other, &options_map)));
+        }
+    }
+
+    println!("flow map {:?}", flow_map);
+    println!("viable options {:?}", viable_options);
+    println!("viable paths {:?}", viable_paths);
+
+    Some(search(start.to_owned(), &viable_paths, &flow_map))
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
