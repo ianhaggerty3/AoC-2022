@@ -1,23 +1,43 @@
 use std::collections::HashMap;
 
-fn mod_add(a: usize, b: usize, orig_list: &Vec<i32>) -> usize {
-    (a + b) % orig_list.len()
+fn mod_add(a: usize, b: usize, modulus: usize) -> usize {
+    (a + b) % modulus
 }
 
-fn mix(start: usize, orig_list: &Vec<i32>, orig_to_new: &mut HashMap<usize, usize>, new_to_orig: &mut HashMap<usize, usize>) {
+fn mix(start: usize, orig_list: &Vec<i32>, orig_to_encrypted: &mut HashMap<usize, usize>, encrypted_to_orig: &mut HashMap<usize, usize>) {
+    let length = orig_list.len();
     let cur = orig_list[start];
-    let cur = cur % orig_list.len() as i32;
-    for i in 1..cur {
-         let tmp = new_to_orig[&orig_to_new[&start]];
-         new_to_orig.insert(orig_to_new[&start], new_to_orig[&orig_to_new[&((start + i as usize) % orig_list.len())]]);
-         new_to_orig.insert(orig_to_new[&((start + i as usize) % orig_list.len())], tmp);
-         orig_to_new.insert(start, mod_add(orig_to_new[&start].clone(), 1, orig_list));
-         orig_to_new.insert((start + i as usize) % orig_list.len(), mod_add(orig_to_new[&((start + i as usize) % orig_list.len())].clone(), orig_list.len() - 1, orig_list));
+    let cur = cur.rem_euclid(length as i32 - 1); // it takes length - 1 swaps to get to the same place as before
+   //  println!("start = {}, encrypted_start = {}, cur = {}", start, orig_to_encrypted[&start], cur);
+
+    for _i in 1..=cur {
+         let tmp = encrypted_to_orig[&orig_to_encrypted[&start]];
+         encrypted_to_orig.insert(orig_to_encrypted[&start], encrypted_to_orig[&mod_add(orig_to_encrypted[&start], 1, length)]);
+         encrypted_to_orig.insert(mod_add(orig_to_encrypted[&start], 1, length), tmp);
+
+         let other_orig_index = encrypted_to_orig[&orig_to_encrypted[&start]];
+         orig_to_encrypted.insert(start, mod_add(orig_to_encrypted[&start].clone(), 1, length));
+         orig_to_encrypted.insert(other_orig_index, mod_add(orig_to_encrypted[&other_orig_index].clone(), orig_list.len() - 1, length));
     }
 }
 
-fn get_num(num: usize, new_to_orig: &HashMap<usize, usize>, orig_list: &Vec<i32>) -> i32 {
-    orig_list[new_to_orig[&((num - 1) % orig_list.len())]].clone()
+fn get_num(num: usize, encrypted_to_orig: &HashMap<usize, usize>, orig_list: &Vec<i32>) -> i32 {
+    orig_list[encrypted_to_orig[&(num % orig_list.len())]].clone()
+}
+
+fn print_new_list(orig_list: &Vec<i32>, encrypted_to_orig: &HashMap<usize, usize>) {
+    print!("[");
+    for i in 0..orig_list.len() {
+        print!("{}, ", orig_list[encrypted_to_orig[&i]]);
+    }
+    print!("]");
+    println!();
+}
+
+fn verify_structs(orig_list: &Vec<i32>, orig_to_encrypted: &HashMap<usize, usize>, encrypted_to_orig: &HashMap<usize, usize>) {
+    for i in 0..orig_list.len() {
+        assert_eq!(i, orig_to_encrypted[&encrypted_to_orig[&i]].clone());
+    }
 }
 
 pub fn part_one(input: &str) -> Option<i32> {
@@ -25,30 +45,36 @@ pub fn part_one(input: &str) -> Option<i32> {
         line.trim().parse::<i32>().unwrap()
     ).collect();
     
-    let mut orig_to_new = HashMap::new();
+    let mut orig_to_encrypted = HashMap::new();
     for i in 0..orig_list.len() {
-        orig_to_new.insert(i, i);
+        orig_to_encrypted.insert(i, i);
     }
-    let mut new_to_orig = HashMap::new();
+    let mut encrypted_to_orig = HashMap::new();
     for i in 0..orig_list.len() {
-        new_to_orig.insert(i, i);
-    }
-
-    for i in 0..orig_list.len() {
-        mix(i, &orig_list, &mut orig_to_new, &mut new_to_orig);
+        encrypted_to_orig.insert(i, i);
     }
 
-    print!("[");
+    // print_new_list(&orig_list, &encrypted_to_orig);
+    
     for i in 0..orig_list.len() {
-        print!("{} ", orig_list[new_to_orig[&i]]);
+        mix(i, &orig_list, &mut orig_to_encrypted, &mut encrypted_to_orig);
+        verify_structs(&orig_list, &orig_to_encrypted, &encrypted_to_orig);
+      //   print_new_list(&orig_list, &encrypted_to_orig);
     }
-    print!("]");
 
-    Some(get_num(1000, &new_to_orig, &orig_list) + get_num(2000, &new_to_orig, &orig_list) + get_num(3000, &new_to_orig, &orig_list))
+    let zero_orig_index = orig_list.iter().position(|&x| x == 0).unwrap().clone();
+    let zero_encrypted_index = orig_to_encrypted[&zero_orig_index];
+    // println!("{:?}", orig_list);
+    println!("zero orig = {} encrypted = {}", zero_orig_index, zero_encrypted_index);
+    let num1 = 1000 + zero_encrypted_index;
+    let num2 = 2000 + zero_encrypted_index;
+    let num3 = 3000 + zero_encrypted_index;
 
+    println!("{} + {} + {}", get_num(num1, &encrypted_to_orig, &orig_list), get_num(num2, &encrypted_to_orig, &orig_list), get_num(num3, &encrypted_to_orig, &orig_list));
+    Some(get_num(num1, &encrypted_to_orig, &orig_list) + get_num(num2, &encrypted_to_orig, &orig_list) + get_num(num3, &encrypted_to_orig, &orig_list))
 }
 
-pub fn part_two(input: &str) -> Option<u32> {
+pub fn part_two(input: &str) -> Option<i32> {
     None
 }
 
