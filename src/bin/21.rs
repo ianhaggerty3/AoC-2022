@@ -56,14 +56,104 @@ pub fn part_one(input: &str) -> Option<i64> {
 
     for raw_monkey in input.lines() {
         let (id, monkey) = parse_line(raw_monkey);
-        println!("id = {} monkey = {:?}", id, monkey);
         monkey_lookup.insert(id, monkey);
     }
     Some(get_val(&"root".to_string(), &monkey_lookup))
 }
 
+fn get_num_to_equal(id: &String, monkey_lookup: &HashMap<String, Monkey>) -> Option<i64> {
+    let monkey = &monkey_lookup[id];
+    if id.eq(&"humn".to_string()) {
+        return None;
+    }
+
+    match monkey {
+        Monkey::Operation(left, right, op) => {
+           let left_val = get_num_to_equal(left, monkey_lookup);
+           let right_val = get_num_to_equal(right, monkey_lookup);
+           if left_val.is_none() || right_val.is_none() {
+               return None;
+           } else {
+               return Some(do_operation(left_val.unwrap(), right_val.unwrap(), op));
+           }
+        },
+        Monkey::Number(num) => {
+            Some(num.clone())
+        },
+    }
+}
+
+fn find_unknown(known: i64, total: i64, op: &Op, first: bool) -> i64 {
+   match op {
+       Op::Add => total - known,
+       Op::Sub => {
+           if first {
+               known - total
+           } else {
+               total + known
+           }
+       },
+       Op::Mul => total / known,
+       Op::Div => {
+           if first {
+               known / total
+           } else {
+               known * total
+           }
+       },
+   }
+}
+
+fn get_missing_num(id: &String, cur_eq: i64, monkey_lookup: &HashMap<String, Monkey>) -> i64 {
+    if id.eq(&"humn".to_string()) {
+        return cur_eq;
+    }
+
+    let monkey = &monkey_lookup[id];
+    match monkey {
+        Monkey::Operation(left, right, op) => {
+            let left_val = get_num_to_equal(left, monkey_lookup);
+            let right_val = get_num_to_equal(right, monkey_lookup);
+            if left_val.is_none() {
+                let num_to_eq = find_unknown(right_val.unwrap(), cur_eq, op, false);
+                println!("new num to eq = {}", num_to_eq);
+                return get_missing_num(left, num_to_eq, monkey_lookup);
+            } else if right_val.is_none() {
+                let num_to_eq = find_unknown(left_val.unwrap(), cur_eq, op, true);
+                println!("new num to eq = {}", num_to_eq);
+                return get_missing_num(right, num_to_eq, monkey_lookup);
+            } else {
+                panic!("Unexpected tree path");
+            }
+        },
+        _ => todo!(),
+    }
+}
+
 pub fn part_two(input: &str) -> Option<i64> {
-    None
+    let mut monkey_lookup = HashMap::new();
+
+    for raw_monkey in input.lines() {
+        let (id, monkey) = parse_line(raw_monkey);
+        monkey_lookup.insert(id, monkey);
+    }
+
+    // Assumes that both sides do not have the human on them, at any point.
+    let root_monkey = &monkey_lookup[&"root".to_string()];
+    match root_monkey {
+        Monkey::Operation(left, right, _op) => {
+            if let Some(first_eq) = get_num_to_equal(left, &monkey_lookup) {
+                println!("first number to eq 1 = {}", first_eq);
+                return Some(get_missing_num(right, first_eq, &monkey_lookup));
+            } else if let Some(first_eq) = get_num_to_equal(right, &monkey_lookup) {
+                println!("first number to eq 2 = {}", first_eq);
+                return Some(get_missing_num(left, first_eq, &monkey_lookup));
+            } else {
+                panic!("Unknown Information on both sides!");
+            }
+        },
+        _ => todo!(),
+    }
 }
 
 fn main() {
@@ -85,6 +175,6 @@ mod tests {
     #[test]
     fn test_part_two() {
         let input = advent_of_code::read_file("examples", 21);
-        assert_eq!(part_two(&input), None);
+        assert_eq!(part_two(&input), Some(301));
     }
 }
