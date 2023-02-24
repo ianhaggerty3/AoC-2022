@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 
 fn get_range_from_row(row: &str) -> Range<usize> {
@@ -55,57 +55,20 @@ enum Instruction {
     Right(),
 }
 
-#[derive(Debug)]
-enum Direction {
-    Up(),
-    Down(),
-    Left(),
-    Right(),
-}
-
-fn perform_instruction(instruction: &Instruction, current_pos: &mut (usize, usize), current_direction: &mut Direction, rows: &Vec<Range<usize>>, cols: &Vec<Range<usize>>, blockers: &HashSet<(usize, usize)>) {
+fn perform_instruction(instruction: &Instruction, current_pos: &mut (usize, usize), current_direction: &mut i32, rows: &Vec<Range<usize>>, cols: &Vec<Range<usize>>, blockers: &HashSet<(usize, usize)>) {
 
     match instruction {
-        Instruction::Left() => {
-            match current_direction {
-                Direction::Up() => {
-                    *current_direction = Direction::Left();
-                },
-                Direction::Down() => {
-                    *current_direction = Direction::Right();
-                },
-                Direction::Left() => {
-                    *current_direction = Direction::Down();
-                },
-                Direction::Right() => {
-                    *current_direction = Direction::Up();
-                },
-            }
-        },
-        Instruction::Right() => {
-            match current_direction {
-                Direction::Up() => {
-                    *current_direction = Direction::Right();
-                },
-                Direction::Down() => {
-                    *current_direction = Direction::Left();
-                },
-                Direction::Left() => {
-                    *current_direction = Direction::Up();
-                },
-                Direction::Right() => {
-                    *current_direction = Direction::Down();
-                },
-            }
-        },
+        Instruction::Left() => *current_direction = (*current_direction - 1).rem_euclid(4),
+        Instruction::Right() => *current_direction = (*current_direction + 1).rem_euclid(4),
         Instruction::Magnitude(dist) => {
             let transform_tuple = match current_direction {
-                Direction::Up() => (0, -1),
-                Direction::Down() => (0, 1),
-                Direction::Left() => (-1, 0),
-                Direction::Right() => (1, 0),
+                0 => (1, 0),
+                1 => (0, 1),
+                2 => (-1, 0),
+                3 => (0, -1),
+                _ => panic!("unexpected direction"),
             };
-            for i in 0..*dist {
+            for _i in 0..*dist {
                 let mut proposed_new_x = current_pos.0 as i32 + transform_tuple.0; 
                 if proposed_new_x > rows[current_pos.1].end as i32 {
                     proposed_new_x = rows[current_pos.1].start as i32;
@@ -125,7 +88,7 @@ fn perform_instruction(instruction: &Instruction, current_pos: &mut (usize, usiz
                     break;
                 }
 
-                println!("moving from {:?} to {:?} facing {:?}", current_pos, proposed_new_location, current_direction);
+                //println!("moving from {:?} to {:?} facing {:?}", current_pos, proposed_new_location, current_direction);
                 *current_pos = proposed_new_location;
             }
         },
@@ -159,7 +122,124 @@ fn parse_instructions(instructions: &str) -> Vec<Instruction> {
     ret
 }
 
+fn get_score(current_direction: &i32, current_pos: &(usize, usize)) -> u32 {
+    (current_pos.1 as u32 + 1) * 1000 + (current_pos.0 as u32 + 1) * 4 + (*current_direction as u32)
+}
+
 pub fn part_one(input: &str) -> Option<u32> {
+    let mut rows: Vec<Range<usize>> = Vec::new();
+    let mut cols: Vec<Range<usize>> = Vec::new();
+    let mut blockers: HashSet<(usize, usize)> = HashSet::new();
+    let input_vec: Vec<_> = input.lines().collect();
+
+    for (i, row) in input.lines().enumerate() {
+        if row.len() == 0 {
+            break;
+        }
+        rows.push(0..0);
+        update_row(row, i, &mut rows);
+    }
+
+    let max_col = rows.iter().map(|range|range.end).max().unwrap();
+
+    for _i in 0..=max_col {
+        cols.push(rows.len()..0); // impossible range as initial value
+    }
+
+    for (i, row) in input.lines().enumerate() {
+        if row.len() == 0 {
+            break;
+        }
+        update_cols(row, i, &mut cols);
+    }
+
+    let mut final_index = 0;
+    for (i, row) in input.lines().enumerate() {
+        if row.len() == 0 {
+            final_index = i + 1;
+            break;
+        }
+        update_blockers(row, i, &mut blockers);
+    }
+
+    let instructions = parse_instructions(input_vec[final_index]);
+    
+    let mut current_pos = (rows[0].start, cols[rows[0].start].start);
+    let mut current_direction = 0;
+    for instruction in &instructions {
+        perform_instruction(instruction, &mut current_pos, &mut current_direction, &rows, &cols, &blockers);
+    }
+
+    let score = get_score(&current_direction, &current_pos);
+
+    Some(score)
+}
+
+fn perform_cube_instruction(instruction: &Instruction, current_pos: &mut (usize, usize), current_direction: &mut i32, rows: &Vec<Range<usize>>, cols: &Vec<Range<usize>>, blockers: &HashSet<(usize, usize)>) {
+
+    match instruction {
+        Instruction::Left() => {
+            *current_direction = (*current_direction - 1).rem_euclid(4);
+        },
+        Instruction::Right() => {
+            *current_direction = (*current_direction + 1).rem_euclid(4);
+        },
+        Instruction::Magnitude(dist) => {
+            let transform_tuple = match current_direction {
+                0 => (1, 0),
+                1 => (0, 1),
+                2 => (-1, 0),
+                3 => (0, -1),
+                _ => panic!("unexpected direction"),
+            };
+            for _i in 0..*dist {
+                let mut proposed_new_x = current_pos.0 as i32 + transform_tuple.0; 
+                if proposed_new_x > rows[current_pos.1].end as i32 {
+                    proposed_new_x = rows[current_pos.1].start as i32;
+                } else if proposed_new_x < rows[current_pos.1].start as i32 {
+                    proposed_new_x = rows[current_pos.1].end as i32;
+                }
+
+                let mut proposed_new_y = current_pos.1 as i32 + transform_tuple.1; 
+                if proposed_new_y > cols[current_pos.0].end as i32 {
+                    proposed_new_y = cols[current_pos.0].start as i32;
+                } else if proposed_new_y < cols[current_pos.0].start as i32 {
+                    proposed_new_y = cols[current_pos.0].end as i32;
+                }
+
+                let proposed_new_location = (proposed_new_x as usize, proposed_new_y as usize);
+                if blockers.contains(&proposed_new_location) {
+                    break;
+                }
+
+                //println!("moving from {:?} to {:?} facing {:?}", current_pos, proposed_new_location, current_direction);
+                *current_pos = proposed_new_location;
+            }
+        },
+    }
+}
+
+fn get_grid_index(pos: &(usize, usize), rows: &Vec<Range<usize>>) -> usize {
+    let max_x = rows.iter().map(|range|range.end).max().unwrap() + 1;
+    let max_y = rows.len();
+    let min_side = std::cmp::min(max_x, max_y);
+    let block_size = min_side / 3;
+    
+    pos.0 + (pos.1 * (max_x / block_size))
+}
+
+fn build_grid_index_to_cube_face(rows: &Vec<Range<usize>>) {
+    let max_x = rows.iter().map(|range|range.end).max().unwrap() + 1;
+    let max_y = rows.len();
+
+    // assumes 3x4 or 4x3 (not sure if valid for all folding patterns)
+    let min_side = std::cmp::min(max_x, max_y);
+    let block_size = min_side / 3;
+
+    println!("min_side = {} block_size = {}", min_side, block_size);
+}
+
+pub fn part_two(input: &str) -> Option<u32> {
     let mut rows: Vec<Range<usize>> = Vec::new();
     let mut cols: Vec<Range<usize>> = Vec::new();
     let mut blockers: HashSet<(usize, usize)> = HashSet::new();
@@ -195,32 +275,18 @@ pub fn part_one(input: &str) -> Option<u32> {
         update_blockers(row, i, &mut blockers);
     }
 
+    build_grid_index_to_cube_face(&rows);
     let instructions = parse_instructions(input_vec[final_index]);
     
-    //println!("{:?}", cols);
-    //println!("{:?}", rows);
-    println!("{:?}", blockers);
-    //println!("{:?}", instructions);
-
     let mut current_pos = (rows[0].start, cols[rows[0].start].start);
-    let mut current_direction = Direction::Right();
+    let mut current_direction = 0;
     for instruction in &instructions {
-        perform_instruction(instruction, &mut current_pos, &mut current_direction, &rows, &cols, &blockers);
+        perform_cube_instruction(instruction, &mut current_pos, &mut current_direction, &rows, &cols, &blockers);
     }
 
-    let dir_score = match current_direction {
-        Direction::Up() => 3,
-        Direction::Down() => 1,
-        Direction::Left() => 2,
-        Direction::Right() => 0,
-    };
-    let score = (current_pos.1 as u32 + 1) * 1000 + (current_pos.0 as u32 + 1) * 4 + dir_score;
+    let score = get_score(&current_direction, &current_pos);
 
     Some(score)
-}
-
-pub fn part_two(input: &str) -> Option<u32> {
-    None
 }
 
 fn main() {
@@ -242,6 +308,6 @@ mod tests {
     #[test]
     fn test_part_two() {
         let input = advent_of_code::read_file("examples", 22);
-        assert_eq!(part_two(&input), None);
+        assert_eq!(part_two(&input), Some(5031));
     }
 }
