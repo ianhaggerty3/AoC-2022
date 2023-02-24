@@ -219,24 +219,109 @@ fn perform_cube_instruction(instruction: &Instruction, current_pos: &mut (usize,
     }
 }
 
-fn get_grid_index(pos: &(usize, usize), rows: &Vec<Range<usize>>) -> usize {
-    let max_x = rows.iter().map(|range|range.end).max().unwrap() + 1;
-    let max_y = rows.len();
-    let min_side = std::cmp::min(max_x, max_y);
-    let block_size = min_side / 3;
-    
-    pos.0 + (pos.1 * (max_x / block_size))
+fn get_grid_index(pos: &(usize, usize), horizontal_blocks: &usize) -> usize {
+    pos.0 + (pos.1 * horizontal_blocks)
 }
 
-fn build_grid_index_to_cube_face(rows: &Vec<Range<usize>>) {
+#[derive(Clone, Debug)]
+struct Face {
+    neighbors: [Option<usize>; 4],
+}
+
+fn get_direction_tuples() -> Vec<(i32, i32)> {
+    Vec::from([(1, 0), (0, 1), (-1, 0), (0, -1)])
+}
+
+fn missing_edges(faces: &HashMap<usize, Face>) -> bool {
+    for face in faces.values() {
+       for direction in face.neighbors {
+           if direction.is_none() {
+               return true;
+           }
+       }
+    }
+
+    false
+}
+
+fn get_one_missing_edge(faces: &HashMap<usize, Face>) -> (usize, usize, usize, usize) {
+    for (face_index, face) in faces {
+        for (direction, neighbor) in face.neighbors.iter().enumerate() {
+            if !neighbor.is_none() {
+                continue;
+            }
+
+            let direction_options = [(direction + 1) % 4, (direction + 3) % 4];
+            for option in direction_options {
+                let common_face_index = face.neighbors[option];
+                if common_face_index.is_none() {
+                    continue;
+                }
+                let common_face_index = common_face_index.unwrap();
+                let common_face = faces.get(&common_face_index).unwrap();
+                let unknown_face_index = common_face.neighbors[direction];
+                if unknown_face_index.is_none() {
+                    continue;
+                }
+                let unknown_face_index = unknown_face_index.unwrap();
+                let unknown_face = faces.get(&unknown_face_index).unwrap();
+
+                // in this case, we know the unknown face is connected to the original face
+                return (face_index.clone(), direction, unknown_face_index, (option + 2) % 4);
+            }
+        }
+    }
+
+    println!("final faces = {:?}", faces);
+    panic!("no missing edge found");
+}
+
+fn build_grid_index_to_cube_face(rows: &Vec<Range<usize>>) -> HashMap<usize, Face> {
+    let mut faces = HashMap::new();
     let max_x = rows.iter().map(|range|range.end).max().unwrap() + 1;
     let max_y = rows.len();
 
     // assumes 3x4 or 4x3 (not sure if valid for all folding patterns)
     let min_side = std::cmp::min(max_x, max_y);
     let block_size = min_side / 3;
+    let horizontal_blocks = max_x / block_size;
 
-    println!("min_side = {} block_size = {}", min_side, block_size);
+    let start = (rows[0].start, 0);
+    let mut Q = Vec::from([start]);
+
+    // populate initial face associations
+    while Q.len() != 0 {
+        let current = Q.pop().unwrap();
+        for (i, direction) in get_direction_tuples().iter().enumerate() {
+            let possible_new = (current.0 as i32 + (block_size as i32) * direction.0, current.1 as i32 + (block_size as i32) * direction.1);
+            if possible_new.1 < 0 || possible_new.1 >= rows.len() as i32 || !rows[possible_new.1 as usize].contains(&(possible_new.0 as usize)) {
+                continue;
+            }
+
+            let current_index = get_grid_index(&(current.0 / block_size, current.1 / block_size), &horizontal_blocks);
+            let mut current_face = faces.get(&current_index).unwrap_or(&(Face { neighbors: [None, None, None, None] } )).clone();
+            let other_index = get_grid_index(&(possible_new.0 as usize / block_size, possible_new.1 as usize / block_size), &horizontal_blocks);
+            let mut other_face = faces.get(&other_index).unwrap_or(&(Face { neighbors: [None, None, None, None] } )).clone();
+            current_face.neighbors[i] = Some(other_index);
+            other_face.neighbors[(i + 2) % 4] = Some(current_index);
+
+            if !Q.contains(&(possible_new.0 as usize, possible_new.1 as usize)) && !faces.contains_key(&other_index) {
+                Q.push((possible_new.0 as usize, possible_new.1 as usize));
+            }
+            faces.insert(current_index, current_face.clone());
+            faces.insert(other_index, other_face.clone());
+        }
+    }
+
+    println!("pre-corner analysis: {:?} keys.len() = {}", faces, faces.keys().len());
+    while missing_edges(&faces) {
+        let (orig_index, orig_direction, new_index, new_direction) = get_one_missing_edge(&faces); 
+        let mut face = faces.get_mut(&orig_index).unwrap();
+        face.neighbors[orig_direction] = Some(new_index);
+        let mut face = faces.get_mut(&new_index).unwrap();
+        face.neighbors[new_direction] = Some(orig_index);
+    }
+    faces
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
