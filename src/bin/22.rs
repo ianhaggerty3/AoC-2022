@@ -251,23 +251,26 @@ fn get_one_missing_edge(faces: &HashMap<usize, Face>) -> (usize, usize, usize, u
                 continue;
             }
 
-            let direction_options = [(direction + 1) % 4, (direction + 3) % 4];
+            let direction_options = [1, 3];
             for option in direction_options {
-                let common_face_index = face.neighbors[option];
+                let common_face_index = face.neighbors[(direction + option) % 4];
                 if common_face_index.is_none() {
                     continue;
                 }
                 let common_face_index = common_face_index.unwrap();
                 let common_face = faces.get(&common_face_index).unwrap();
-                let unknown_face_index = common_face.neighbors[direction];
+                let common_face_direction = common_face.neighbors.iter().position(|&x| x == Some(*face_index)).unwrap();
+
+                let unknown_face_index = common_face.neighbors[(common_face_direction + option) % 4];
                 if unknown_face_index.is_none() {
                     continue;
                 }
                 let unknown_face_index = unknown_face_index.unwrap();
                 let unknown_face = faces.get(&unknown_face_index).unwrap();
+                let unknown_face_direction = unknown_face.neighbors.iter().position(|&x| x == Some(common_face_index)).unwrap();
 
                 // in this case, we know the unknown face is connected to the original face
-                return (face_index.clone(), direction, unknown_face_index, (option + 2) % 4);
+                return (face_index.clone(), direction, unknown_face_index, (unknown_face_direction + option) % 4);
             }
         }
     }
@@ -316,11 +319,13 @@ fn build_grid_index_to_cube_face(rows: &Vec<Range<usize>>) -> HashMap<usize, Fac
     println!("pre-corner analysis: {:?} keys.len() = {}", faces, faces.keys().len());
     while missing_edges(&faces) {
         let (orig_index, orig_direction, new_index, new_direction) = get_one_missing_edge(&faces); 
+        println!("orig_index = {}, orig_direction = {}, new_index = {}, new_direction = {}", orig_index, orig_direction, new_index, new_direction);
         let mut face = faces.get_mut(&orig_index).unwrap();
         face.neighbors[orig_direction] = Some(new_index);
         let mut face = faces.get_mut(&new_index).unwrap();
         face.neighbors[new_direction] = Some(orig_index);
     }
+    println!("post-corner analysis: {:?} keys.len() = {}", faces, faces.keys().len());
     faces
 }
 
