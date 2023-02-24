@@ -175,7 +175,14 @@ pub fn part_one(input: &str) -> Option<u32> {
     Some(score)
 }
 
-fn perform_cube_instruction(instruction: &Instruction, current_pos: &mut (usize, usize), current_direction: &mut i32, rows: &Vec<Range<usize>>, cols: &Vec<Range<usize>>, blockers: &HashSet<(usize, usize)>) {
+fn perform_cube_instruction(instruction: &Instruction, current_pos: &mut (usize, usize), current_direction: &mut i32, rows: &Vec<Range<usize>>, cols: &Vec<Range<usize>>, blockers: &HashSet<(usize, usize)>, faces: &HashMap<usize, Face>) {
+    let max_x = rows.iter().map(|range|range.end).max().unwrap() + 1;
+    let max_y = rows.len();
+
+    // assumes 3x4 or 4x3 (not sure if valid for all folding patterns)
+    let min_side = std::cmp::min(max_x, max_y);
+    let block_size = min_side / 3;
+    let horizontal_blocks = max_x / block_size;
 
     match instruction {
         Instruction::Left() => {
@@ -194,17 +201,20 @@ fn perform_cube_instruction(instruction: &Instruction, current_pos: &mut (usize,
             };
             for _i in 0..*dist {
                 let mut proposed_new_x = current_pos.0 as i32 + transform_tuple.0; 
-                if proposed_new_x > rows[current_pos.1].end as i32 {
-                    proposed_new_x = rows[current_pos.1].start as i32;
-                } else if proposed_new_x < rows[current_pos.1].start as i32 {
-                    proposed_new_x = rows[current_pos.1].end as i32;
-                }
-
                 let mut proposed_new_y = current_pos.1 as i32 + transform_tuple.1; 
-                if proposed_new_y > cols[current_pos.0].end as i32 {
-                    proposed_new_y = cols[current_pos.0].start as i32;
-                } else if proposed_new_y < cols[current_pos.0].start as i32 {
-                    proposed_new_y = cols[current_pos.0].end as i32;
+
+                if proposed_new_x > rows[current_pos.1].end as i32 || proposed_new_x < rows[current_pos.1].start as i32 || proposed_new_y > cols[current_pos.0].end as i32 || proposed_new_y < cols[current_pos.0].start as i32 {
+                    // walked off an edge
+                    let current_grid_index = get_grid_index(&(current_pos.0 / block_size, current_pos.1 / block_size), &horizontal_blocks);
+                    let next_grid_index = faces.get(&current_grid_index).unwrap().neighbors[current_direction.clone() as usize].unwrap();
+                    let next_face = faces.get(&next_grid_index).unwrap();
+                    let next_direction = (next_face.neighbors.iter().position(|&x| x == Some(current_grid_index)).unwrap() + 2) % 4;
+                    println!("next direction = {}", next_direction);
+                    let direction_diff = match current_direction {
+                        //0 => ,
+                        _ => panic!(),
+                    };
+                    //proposed_new_x = rows[current_pos.1].end as i32;
                 }
 
                 let proposed_new_location = (proposed_new_x as usize, proposed_new_y as usize);
@@ -212,7 +222,6 @@ fn perform_cube_instruction(instruction: &Instruction, current_pos: &mut (usize,
                     break;
                 }
 
-                //println!("moving from {:?} to {:?} facing {:?}", current_pos, proposed_new_location, current_direction);
                 *current_pos = proposed_new_location;
             }
         },
@@ -316,16 +325,13 @@ fn build_grid_index_to_cube_face(rows: &Vec<Range<usize>>) -> HashMap<usize, Fac
         }
     }
 
-    println!("pre-corner analysis: {:?} keys.len() = {}", faces, faces.keys().len());
     while missing_edges(&faces) {
         let (orig_index, orig_direction, new_index, new_direction) = get_one_missing_edge(&faces); 
-        println!("orig_index = {}, orig_direction = {}, new_index = {}, new_direction = {}", orig_index, orig_direction, new_index, new_direction);
         let mut face = faces.get_mut(&orig_index).unwrap();
         face.neighbors[orig_direction] = Some(new_index);
         let mut face = faces.get_mut(&new_index).unwrap();
         face.neighbors[new_direction] = Some(orig_index);
     }
-    println!("post-corner analysis: {:?} keys.len() = {}", faces, faces.keys().len());
     faces
 }
 
@@ -365,13 +371,13 @@ pub fn part_two(input: &str) -> Option<u32> {
         update_blockers(row, i, &mut blockers);
     }
 
-    build_grid_index_to_cube_face(&rows);
+    let faces = build_grid_index_to_cube_face(&rows);
     let instructions = parse_instructions(input_vec[final_index]);
     
     let mut current_pos = (rows[0].start, cols[rows[0].start].start);
     let mut current_direction = 0;
     for instruction in &instructions {
-        perform_cube_instruction(instruction, &mut current_pos, &mut current_direction, &rows, &cols, &blockers);
+        perform_cube_instruction(instruction, &mut current_pos, &mut current_direction, &rows, &cols, &blockers, &faces);
     }
 
     let score = get_score(&current_direction, &current_pos);
