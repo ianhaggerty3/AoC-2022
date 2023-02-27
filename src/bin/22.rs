@@ -231,7 +231,7 @@ fn perform_cube_instruction(instruction: &Instruction, current_pos: &mut (usize,
 
                     // experimentally determined algorithm
                     // conditionally flip relative pos (it is flipped again later)
-                    if *current_direction + ((next_direction + 2) % 4) as i32 == 5 {
+                    if *current_direction + ((next_direction + 2) % 4) as i32 == 5 || *current_direction + ((next_direction + 2) % 4) as i32 == 1 || (current_pos.1 as i32 == ((block_size as i32 * 4) - 1) && *current_direction == 1) || (current_pos.1 == 0 && current_pos.0 >= 100 && *current_direction == 3) {
                         current_minor_relative_pos = (block_size as i32 - current_minor_relative_pos as i32 - 1) as usize;
                     }
 
