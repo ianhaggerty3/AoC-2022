@@ -192,16 +192,18 @@ fn perform_cube_instruction(instruction: &Instruction, current_pos: &mut (usize,
             *current_direction = (*current_direction + 1).rem_euclid(4);
         },
         Instruction::Magnitude(dist) => {
-            let transform_tuple = match current_direction {
-                0 => (1, 0),
-                1 => (0, 1),
-                2 => (-1, 0),
-                3 => (0, -1),
-                _ => panic!("unexpected direction"),
-            };
             for _i in 0..*dist {
+                let transform_tuple = match current_direction {
+                    0 => (1, 0),
+                    1 => (0, 1),
+                    2 => (-1, 0),
+                    3 => (0, -1),
+                    _ => panic!("unexpected direction"),
+                };
+
                 let mut proposed_new_x = current_pos.0 as i32 + transform_tuple.0; 
                 let mut proposed_new_y = current_pos.1 as i32 + transform_tuple.1; 
+                let mut proposed_new_direction = *current_direction;
 
                 if proposed_new_x > rows[current_pos.1].end as i32 || proposed_new_x < rows[current_pos.1].start as i32 || proposed_new_y > cols[current_pos.0].end as i32 || proposed_new_y < cols[current_pos.0].start as i32 {
                     // walked off an edge
@@ -210,11 +212,52 @@ fn perform_cube_instruction(instruction: &Instruction, current_pos: &mut (usize,
                     let next_face = faces.get(&next_grid_index).unwrap();
                     let next_direction = (next_face.neighbors.iter().position(|&x| x == Some(current_grid_index)).unwrap() + 2) % 4;
                     println!("next direction = {}", next_direction);
-                    let direction_diff = match current_direction {
-                        //0 => ,
+
+                    // major axis is the one we're moving along
+                    let next_major_pos = match next_direction {
+                        0 => (next_grid_index % horizontal_blocks) * block_size,
+                        1 => (next_grid_index / horizontal_blocks) * block_size,
+                        2 => (next_grid_index % horizontal_blocks) * block_size + (block_size - 1),
+                        3 => (next_grid_index / horizontal_blocks) * block_size + (block_size - 1),
                         _ => panic!(),
                     };
-                    //proposed_new_x = rows[current_pos.1].end as i32;
+
+                    // getting a bit hacky here
+                    let mut current_minor_relative_pos = match current_direction {
+                        0 | 2 => current_pos.1 % block_size,
+                        1 | 3 => current_pos.0 % block_size,
+                        _ => panic!(),
+                    };
+
+                    // experimentally determined algorithm
+                    // conditionally flip relative pos (it is flipped again later)
+                    if *current_direction + ((next_direction + 2) % 4) as i32 == 5 {
+                        current_minor_relative_pos = (block_size as i32 - current_minor_relative_pos as i32 - 1) as usize;
+                    }
+
+                    let next_minor_pos = match next_direction {
+                        0 | 2 => (next_grid_index / horizontal_blocks) * block_size + (block_size - current_minor_relative_pos - 1),
+                        1 | 3 => (next_grid_index % horizontal_blocks) * block_size + (block_size - current_minor_relative_pos - 1),
+                        _ => panic!(),
+                    };
+
+                    match next_direction {
+                        0 | 2 => {
+                            proposed_new_x = next_major_pos as i32;
+                            proposed_new_y = next_minor_pos as i32;
+                        },
+                        1 | 3 => {
+                            proposed_new_y = next_major_pos as i32;
+                            proposed_new_x = next_minor_pos as i32;
+                        },
+                        _ => panic!(),
+                    };
+                    //println!("current_pos = {:?}", current_pos);
+                    //println!("current_minor_relative_pos = {}", current_minor_relative_pos);
+                    //println!("current_minor_relative_pos = {}", current_minor_relative_pos);
+                    //println!("proposing new_x = {} new_y = {}", proposed_new_x, proposed_new_y);
+
+                    proposed_new_direction = next_direction as i32;
                 }
 
                 let proposed_new_location = (proposed_new_x as usize, proposed_new_y as usize);
@@ -223,6 +266,8 @@ fn perform_cube_instruction(instruction: &Instruction, current_pos: &mut (usize,
                 }
 
                 *current_pos = proposed_new_location;
+                *current_direction = proposed_new_direction;
+                println!("moving to {:?} facing {}", current_pos, current_direction)
             }
         },
     }
@@ -297,8 +342,10 @@ fn build_grid_index_to_cube_face(rows: &Vec<Range<usize>>) -> HashMap<usize, Fac
     let min_side = std::cmp::min(max_x, max_y);
     let block_size = min_side / 3;
     let horizontal_blocks = max_x / block_size;
+    println!("block_size = {} horizontal_blocks = {}", block_size, horizontal_blocks);
 
     let start = (rows[0].start, 0);
+    
     let mut Q = Vec::from([start]);
 
     // populate initial face associations
