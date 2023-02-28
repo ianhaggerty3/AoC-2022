@@ -10,21 +10,6 @@ fn parse_line(line: &str, options_map: &mut HashMap<String, Vec<String>>, flow_m
     flow_map.insert(parsed.0.clone().to_owned(), parsed.1);
 }
 
-fn get_best_flow_option(options: &HashSet<(String, u32)>, costs: &HashMap<(String, u32), i32>) -> (String, u32) {
-    let mut best_option = ("".clone().to_owned(), 0);
-    let mut best_option_cost = i32::MAX;
-
-    for option in options {
-        let current_cost = costs.get(option).cloned().unwrap();
-        if current_cost < best_option_cost {
-            best_option_cost = current_cost;
-            best_option = option.clone().to_owned();
-        }
-    }
-
-    best_option
-}
-
 fn get_pieces(node: &(String, u32)) -> Vec<&str> {
     let key = &node.0;
     (0..(node.0.len() / 2))
@@ -85,7 +70,7 @@ fn search(start: String, map: &HashMap<String, Vec<(String, u32)>>, flow_map: &H
     actual_cost.insert((start.clone(), 0), 0);
 
     while !open_set.is_empty() {
-        let current = get_best_flow_option(&open_set, &actual_cost);
+        let current = open_set.iter().next().unwrap().clone();
         open_set.remove(&current);
 
         for neighbor in get_neighbors(&current, map) {
