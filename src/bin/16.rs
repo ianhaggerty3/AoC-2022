@@ -10,41 +10,18 @@ fn parse_line(line: &str, options_map: &mut HashMap<String, Vec<String>>, flow_m
     flow_map.insert(parsed.0.clone().to_owned(), parsed.1);
 }
 
-fn get_pieces(node: &(String, u32)) -> Vec<&str> {
-    let key = &node.0;
-    (0..(node.0.len() / 2))
-        .map(|i| { &key[(2*i)..(2*i)+2] }).collect()
-}
-
-fn get_pieces_str(key: &String) -> Vec<&str> {
-    (0..(key.len() / 2))
-        .map(|i| { &key[(2*i)..(2*i)+2] }).collect()
-}
-
-fn is_valid(key: &String) -> bool {
-    let pieces = get_pieces_str(key);
-    let new_val = pieces[pieces.len() - 1].clone().to_owned();
-    for i in 0..(pieces.len() - 1) {
-        if new_val.eq(pieces[i]) {
-            return false;
-        }
-    }
-
-    true
-}
-
 fn get_neighbors(node: &(String, u32), map: &HashMap<String, Vec<(String, u32)>>) -> Vec<(String, u32)> {
     let mut ret: Vec<(String, u32)> = Vec::new();
-    let pieces = get_pieces(node);
-    let node_key = pieces[pieces.len() - 1].clone().to_owned();
+    let node_key = node.0[node.0.len() - 2..].to_owned();
 
-    for connected in &map[&node_key] {
+    let neighbors = map[&node_key].iter().filter(|neighbor| node.0.find(&neighbor.0).is_none());
+//    for connected in &map[&node_key] {
+    for connected in neighbors {
         let mut new_key = node.0.clone();
+        new_key.push_str("|");
         new_key.push_str(&connected.0);
-        if is_valid(&new_key) {
-            if node.1 + connected.1 < 30 {
-                ret.push((new_key, node.1 + connected.1));
-            }
+        if node.1 + connected.1 < 30 {
+            ret.push((new_key, node.1 + connected.1));
         }
     }
 
@@ -169,22 +146,6 @@ fn get_dual_cost(current: &(String, u32, String, u32), neighbor: &(String, u32, 
     }
 
     -(a_rate as i32 * (26 - neighbor.1) as i32) + -(b_rate as i32 * (26 - neighbor.3) as i32)
-}
-
-fn is_dual_valid(a_key: &String, b_key: &String) -> bool {
-    let new_a_val = a_key[a_key.len() - 2..].to_owned();
-    let new_b_val = b_key[b_key.len() - 2..].to_owned();
-    let old_a_val = a_key[..a_key.len() - 2].to_owned();
-    let old_b_val = b_key[..b_key.len() - 2].to_owned();
-
-    if new_a_val.eq(&new_b_val) {
-        return false;
-    }
-
-    let a_valid = old_a_val.find(&new_a_val).is_none() && old_b_val.find(&new_a_val).is_none();
-    let b_valid = old_a_val.find(&new_b_val).is_none() && old_b_val.find(&new_b_val).is_none();
-
-    a_valid && b_valid
 }
 
 fn get_dual_neighbors(node: &(String, u32, String, u32), map: &HashMap<String, Vec<(String, u32)>>) -> Vec<(String, u32, String, u32)> {
