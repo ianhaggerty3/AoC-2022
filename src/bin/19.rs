@@ -20,8 +20,9 @@ fn get_blueprint(line: &str) -> Blueprint {
     }
 }
 
-fn get_neighbors(current: (u32, u32, u32, u32, u32, u32, u32, u32, u32), blueprint: &Blueprint) -> Vec<(u32, u32, u32, u32, u32, u32, u32, u32, u32)> {
-    let mut ret: Vec<(u32, u32, u32, u32, u32, u32, u32, u32, u32)> = Vec::new();
+fn get_neighbors(current: (u32, u32, u32, u32, u32, u32, u32, u32, u32, bool, bool, bool), blueprint: &Blueprint) -> Vec<(u32, u32, u32, u32, u32, u32, u32, u32, u32, bool, bool, bool)> {
+    let mut ret: Vec<(u32, u32, u32, u32, u32, u32, u32, u32, u32, bool, bool, bool)> = Vec::new();
+    let mut ore_bot_possible = false;
     let mut clay_bot_possible = false;
     let mut obsidian_bot_possible = false;
 
@@ -31,44 +32,42 @@ fn get_neighbors(current: (u32, u32, u32, u32, u32, u32, u32, u32, u32), bluepri
 
     // buy geode
     if current.2 >= blueprint.geode_bot_cost.0 && current.6 >= blueprint.geode_bot_cost.1 {
-        ret.push((current.0 + 1, current.1, current.2 - blueprint.geode_bot_cost.0 + current.1, current.3, current.4 + current.3, current.5, current.6 - blueprint.geode_bot_cost.1 + current.5, current.7 + 1, current.8 + current.7).clone());
+        ret.push((current.0 + 1, current.1, current.2 - blueprint.geode_bot_cost.0 + current.1, current.3, current.4 + current.3, current.5, current.6 - blueprint.geode_bot_cost.1 + current.5, current.7 + 1, current.8 + current.7, false, false, false));
         return ret;
     }
 
     let max_ore_cost = blueprint.clay_bot_cost.max(blueprint.obsidian_bot_cost.0).max(blueprint.geode_bot_cost.0);
 
     // buy ore
-    if current.2 >= blueprint.ore_bot_cost && current.1 < max_ore_cost {
-        ret.push((current.0 + 1, current.1 + 1, current.2 - blueprint.ore_bot_cost + current.1, current.3, current.4 + current.3, current.5, current.6 + current.5, current.7, current.8 + current.7).clone());
+    if !current.9 && current.2 >= blueprint.ore_bot_cost && current.1 < max_ore_cost {
+        ore_bot_possible = false;
+        ret.push((current.0 + 1, current.1 + 1, current.2 - blueprint.ore_bot_cost + current.1, current.3, current.4 + current.3, current.5, current.6 + current.5, current.7, current.8 + current.7, false, false, false));
     }
 
     // buy clay
-    if current.2 >= blueprint.clay_bot_cost {
+    if !current.10 && current.2 >= blueprint.clay_bot_cost {
         clay_bot_possible = true;
-        ret.push((current.0 + 1, current.1, current.2 - blueprint.clay_bot_cost + current.1, current.3 + 1, current.4 + current.3, current.5, current.6 + current.5, current.7, current.8 + current.7).clone());
+        ret.push((current.0 + 1, current.1, current.2 - blueprint.clay_bot_cost + current.1, current.3 + 1, current.4 + current.3, current.5, current.6 + current.5, current.7, current.8 + current.7, false, false, false));
     }
 
     // buy obsidian
-    if current.2 >= blueprint.obsidian_bot_cost.0 && current.4 >= blueprint.obsidian_bot_cost.1 {
+    if !current.11 && current.2 >= blueprint.obsidian_bot_cost.0 && current.4 >= blueprint.obsidian_bot_cost.1 {
         obsidian_bot_possible = true;
-        ret.push((current.0 + 1, current.1, current.2 - blueprint.obsidian_bot_cost.0 + current.1, current.3, current.4 - blueprint.obsidian_bot_cost.1 + current.3, current.5 + 1, current.6 + current.5, current.7, current.8 + current.7).clone());
+        ret.push((current.0 + 1, current.1, current.2 - blueprint.obsidian_bot_cost.0 + current.1, current.3, current.4 - blueprint.obsidian_bot_cost.1 + current.3, current.5 + 1, current.6 + current.5, current.7, current.8 + current.7, false, false, false));
     }
 
-    if (current.5 == 0 && !obsidian_bot_possible || current.5 != 0) && (current.3 == 0 && !clay_bot_possible || current.3 != 0) {
-        ret.push((current.0 + 1, current.1, current.2 + current.1, current.3, current.4 + current.3, current.5, current.6 + current.5, current.7, current.8 + current.7).clone());
-    }
+    // if (current.5 == 0 && !obsidian_bot_possible || current.5 != 0) && (current.3 == 0 && !clay_bot_possible || current.3 != 0) {
+    ret.push((current.0 + 1, current.1, current.2 + current.1, current.3, current.4 + current.3, current.5, current.6 + current.5, current.7, current.8 + current.7, current.9 || ore_bot_possible, current.10 || clay_bot_possible, current.11 || obsidian_bot_possible));
+    // }
 
     ret
 }
 
 fn find_max_geodes(blueprint: &Blueprint) -> u32 {
-    let mut open_set: HashSet<(u32, u32, u32, u32, u32, u32, u32, u32, u32)> = HashSet::new();
+    let mut open_set: HashSet<(u32, u32, u32, u32, u32, u32, u32, u32, u32, bool, bool, bool)> = HashSet::new();
     let mut best_path_geodes = 0;
     let mut current_best_geodes = [0; 24];
-    let mut current_best_path = [(0, 1, 0, 0, 0, 0, 0, 0, 0); 24];
-    open_set.insert((0, 1, 0, 0, 0, 0, 0, 0, 0));
-    println!("starting search!");
-    println!("blueprint = {:?}", blueprint);
+    open_set.insert((0, 1, 0, 0, 0, 0, 0, 0, 0, false, false, false));
 
     while !open_set.is_empty() {
         let current = open_set.iter().next().unwrap().clone();
@@ -82,15 +81,10 @@ fn find_max_geodes(blueprint: &Blueprint) -> u32 {
 
             best_path_geodes = std::cmp::max(best_path_geodes ,new_actual_geodes);
 
-
-            current_best_path[(neighbor.0 - 1) as usize] = current.clone();
             current_best_geodes[(neighbor.0 - 1) as usize] = new_actual_geodes;
             open_set.insert(neighbor.clone());
         }
     }
-
-    println!("{:?}", current_best_geodes);
-    println!("{:?}", current_best_path);
 
     println!("best_path_geodes = {}", best_path_geodes);
 
@@ -106,6 +100,7 @@ pub fn part_one(input: &str) -> Option<u32> {
 
     let mut quality_score = 0;
     for (i, blueprint) in blueprints.iter().enumerate() {
+        println!("starting search #{}", i);
         quality_score = quality_score + (i as u32 + 1) * find_max_geodes(blueprint);
     }
 
