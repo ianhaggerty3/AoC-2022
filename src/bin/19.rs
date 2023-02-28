@@ -20,13 +20,13 @@ fn get_blueprint(line: &str) -> Blueprint {
     }
 }
 
-fn get_neighbors(current: (u32, u32, u32, u32, u32, u32, u32, u32, u32, bool, bool, bool), blueprint: &Blueprint) -> Vec<(u32, u32, u32, u32, u32, u32, u32, u32, u32, bool, bool, bool)> {
+fn get_neighbors(current: (u32, u32, u32, u32, u32, u32, u32, u32, u32, bool, bool, bool), blueprint: &Blueprint, days: u32) -> Vec<(u32, u32, u32, u32, u32, u32, u32, u32, u32, bool, bool, bool)> {
     let mut ret: Vec<(u32, u32, u32, u32, u32, u32, u32, u32, u32, bool, bool, bool)> = Vec::new();
     let mut ore_bot_possible = false;
     let mut clay_bot_possible = false;
     let mut obsidian_bot_possible = false;
 
-    if current.0 == 24 {
+    if current.0 == days {
         return ret;
     }
 
@@ -63,17 +63,17 @@ fn get_neighbors(current: (u32, u32, u32, u32, u32, u32, u32, u32, u32, bool, bo
     ret
 }
 
-fn find_max_geodes(blueprint: &Blueprint) -> u32 {
+fn find_max_geodes(blueprint: &Blueprint, days: u32) -> u32 {
     let mut open_set: HashSet<(u32, u32, u32, u32, u32, u32, u32, u32, u32, bool, bool, bool)> = HashSet::new();
     let mut best_path_geodes = 0;
-    let mut current_best_geodes = [0; 24];
+    let mut current_best_geodes = [0; 32];
     open_set.insert((0, 1, 0, 0, 0, 0, 0, 0, 0, false, false, false));
 
     while !open_set.is_empty() {
         let current = open_set.iter().next().unwrap().clone();
         open_set.remove(&current);
 
-        for neighbor in get_neighbors(current.clone(), blueprint) {
+        for neighbor in get_neighbors(current.clone(), blueprint, days) {
             let new_actual_geodes = neighbor.8;
             if new_actual_geodes < current_best_geodes[(neighbor.0 - 1) as usize] {
                 continue;
@@ -101,14 +101,25 @@ pub fn part_one(input: &str) -> Option<u32> {
     let mut quality_score = 0;
     for (i, blueprint) in blueprints.iter().enumerate() {
         println!("starting search #{}", i);
-        quality_score = quality_score + (i as u32 + 1) * find_max_geodes(blueprint);
+        quality_score = quality_score + (i as u32 + 1) * find_max_geodes(blueprint, 24);
     }
 
     Some(quality_score)
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
-    None
+    let mut blueprints: Vec<Blueprint> = Vec::new();
+    for line in input.lines() {
+        blueprints.push(get_blueprint(line));
+    }
+
+    let mut geode_product = 1;
+    for (i, blueprint) in blueprints.iter().take(3).enumerate() {
+        println!("starting search #{}", i);
+        geode_product *= find_max_geodes(blueprint, 32);
+    }
+
+    Some(geode_product)
 }
 
 fn main() {
@@ -130,6 +141,6 @@ mod tests {
     #[test]
     fn test_part_two() {
         let input = advent_of_code::read_file("examples", 19);
-        assert_eq!(part_two(&input), None);
+        assert_eq!(part_two(&input), Some(56 * 62));
     }
 }
