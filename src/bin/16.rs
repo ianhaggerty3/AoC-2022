@@ -52,10 +52,7 @@ fn get_neighbors(node: &(String, u32), map: &HashMap<String, Vec<(String, u32)>>
 }
 
 fn get_cost(node: &(String, u32), flow_map: &HashMap<String, u32>) -> i32 {
-    let pieces = get_pieces(node);
-    let node_key = pieces[pieces.len() - 1].clone().to_owned();
-    // println!("getting cost of {:?}", node);
-    // println!("looking for key {} in flow_map", node_key);
+    let node_key = node.0[node.0.len() - 2..].to_owned();
     let flow_rate = flow_map[&node_key];
 
     -(flow_rate as i32 * (30 - node.1) as i32)
@@ -153,19 +150,20 @@ pub fn part_one(input: &str) -> Option<i32> {
 }
 
 fn get_dual_cost(current: &(String, u32, String, u32), neighbor: &(String, u32, String, u32), flow_map: &HashMap<String, u32>) -> i32 {
-    let a_same = current.0 == neighbor.0;
-    let b_same = current.2 == neighbor.2;
 
-    let a_pieces = get_pieces_str(&neighbor.0);
-    let b_pieces = get_pieces_str(&neighbor.2);
-    let a_key = a_pieces[a_pieces.len() - 1].clone().to_owned();
-    let b_key = b_pieces[b_pieces.len() - 1].clone().to_owned();
+    let a_key = neighbor.0[neighbor.0.len() - 2..].to_owned();
+    let b_key = neighbor.2[neighbor.2.len() - 2..].to_owned();
+
     let mut a_rate = flow_map[&a_key];
     let mut b_rate = flow_map[&b_key];
+
+    let a_same = current.0 == neighbor.0;
+    let b_same = current.2 == neighbor.2;
 
     if a_same {
         a_rate = 0;
     }
+
     if b_same {
         b_rate = 0;
     }
@@ -174,58 +172,57 @@ fn get_dual_cost(current: &(String, u32, String, u32), neighbor: &(String, u32, 
 }
 
 fn is_dual_valid(a_key: &String, b_key: &String) -> bool {
-    let a_pieces = get_pieces_str(a_key);
-    let b_pieces = get_pieces_str(b_key);
-    let new_a_val = a_pieces[a_pieces.len() - 1].clone().to_owned();
-    let new_b_val = b_pieces[b_pieces.len() - 1].clone().to_owned();
+    let new_a_val = a_key[a_key.len() - 2..].to_owned();
+    let new_b_val = b_key[b_key.len() - 2..].to_owned();
+    let old_a_val = a_key[..a_key.len() - 2].to_owned();
+    let old_b_val = b_key[..b_key.len() - 2].to_owned();
 
     if new_a_val.eq(&new_b_val) {
         return false;
     }
 
-    for i in 0..(a_pieces.len() - 1) {
-        if new_a_val.eq(a_pieces[i]) || new_b_val.eq(a_pieces[i]) {
-            return false;
-        }
-    }
+    let a_valid = old_a_val.find(&new_a_val).is_none() && old_b_val.find(&new_a_val).is_none();
+    let b_valid = old_a_val.find(&new_b_val).is_none() && old_b_val.find(&new_b_val).is_none();
 
-    for i in 0..(b_pieces.len() - 1) {
-        if new_a_val.eq(b_pieces[i]) || new_b_val.eq(b_pieces[i]) {
-            return false;
-        }
-    }
-
-    true
+    a_valid && b_valid
 }
 
 fn get_dual_neighbors(node: &(String, u32, String, u32), map: &HashMap<String, Vec<(String, u32)>>) -> Vec<(String, u32, String, u32)> {
     let mut ret: Vec<(String, u32, String, u32)> = Vec::new();
-    let a_pieces = get_pieces_str(&node.0);
-    let b_pieces = get_pieces_str(&node.2);
-    let a_key = a_pieces[a_pieces.len() - 1].clone().to_owned();
-    let b_key = b_pieces[b_pieces.len() - 1].clone().to_owned();
+    let a_key = node.0[node.0.len() - 2..].to_owned();
+    let b_key = node.2[node.2.len() - 2..].to_owned();
 
-    for a_neighbor in &map[&a_key] {
-        let mut new_a_key = node.0.clone();
-        new_a_key.push_str(&a_neighbor.0);
-        for b_neighbor in &map[&b_key] {
-            let mut new_b_key = node.2.clone();
-            new_b_key.push_str(&b_neighbor.0);
-            if is_dual_valid(&new_a_key, &new_b_key) {
-                if node.1 + a_neighbor.1 < 26 && node.3 + b_neighbor.1 < 26 {
-                    ret.push((new_a_key.clone(), node.1 + a_neighbor.1, new_b_key.clone(), node.3 + b_neighbor.1));
-                }
-            }
-            if is_dual_valid(&node.0, &new_b_key) {
-                if node.3 + b_neighbor.1 < 26 {
-                    ret.push((node.0.clone(), node.1, new_b_key, node.3 + b_neighbor.1))
-                }
+    let a_neighbors = map[&a_key].iter().filter(|neighbor| node.0.find(&neighbor.0).is_none() && node.2.find(&neighbor.0).is_none());
+    for a_neighbor in a_neighbors {
+        let mut new_a_path = node.0.clone();
+        new_a_path.push_str("|");
+        new_a_path.push_str(&a_neighbor.0);
+        
+        // neighbors where both move
+        let b_neighbors = map[&b_key].iter().filter(|neighbor| new_a_path.find(&neighbor.0).is_none() && node.2.find(&neighbor.0).is_none());
+        for b_neighbor in b_neighbors {
+            let mut new_b_path = node.2.clone();
+            new_b_path.push_str("|");
+            new_b_path.push_str(&b_neighbor.0);
+            if node.1 + a_neighbor.1 < 26 && node.3 + b_neighbor.1 < 26 {
+                ret.push((new_a_path.clone(), node.1 + a_neighbor.1, new_b_path.clone(), node.3 + b_neighbor.1));
             }
         }
-        if is_dual_valid(&new_a_key, &node.2) {
-            if node.1 + a_neighbor.1 < 26 {
-                ret.push((new_a_key, node.1 + a_neighbor.1, node.2.clone(), node.3));
+
+        // neighbors where one moves
+        let b_neighbors = map[&b_key].iter().filter(|neighbor| node.0.find(&neighbor.0).is_none() && node.2.find(&neighbor.0).is_none());
+        for b_neighbor in b_neighbors {
+            let mut new_b_path = node.2.clone();
+            new_b_path.push_str("|");
+            new_b_path.push_str(&b_neighbor.0);
+
+            if node.3 + b_neighbor.1 < 26 {
+                ret.push((node.0.clone(), node.1, new_b_path, node.3 + b_neighbor.1))
             }
+        }
+
+        if node.1 + a_neighbor.1 < 26 {
+            ret.push((new_a_path, node.1 + a_neighbor.1, node.2.clone(), node.3));
         }
     }
 
@@ -261,7 +258,7 @@ fn dual_search(start: String, map: &HashMap<String, Vec<(String, u32)>>, flow_ma
 
         for neighbor in get_dual_neighbors(&current, map) {
             // println!("got neighbor {:?} for current {:?}", neighbor, current);
-            let new_actual_cost = actual_cost.get(&current).unwrap() + get_dual_cost(&current,&neighbor, flow_map);
+            let new_actual_cost = actual_cost.get(&current).unwrap() + get_dual_cost(&current, &neighbor, flow_map);
             if new_actual_cost < actual_cost.get(&neighbor).cloned().unwrap_or(i32::MAX) {
                 actual_cost.insert(neighbor.clone(), new_actual_cost);
                 open_set.insert(neighbor.clone());
@@ -307,6 +304,8 @@ pub fn part_two(input: &str) -> Option<i32> {
         }
     }
 
+    println!("got to dual_search");
+
     Some(dual_search(start.to_owned(), &viable_paths, &flow_map))
 }
 
@@ -323,12 +322,12 @@ mod tests {
     #[test]
     fn test_part_one() {
         let input = advent_of_code::read_file("examples", 16);
-        assert_eq!(part_one(&input), None);
+        assert_eq!(part_one(&input), Some(1651));
     }
 
     #[test]
     fn test_part_two() {
         let input = advent_of_code::read_file("examples", 16);
-        assert_eq!(part_two(&input), None);
+        assert_eq!(part_two(&input), Some(1707));
     }
 }
