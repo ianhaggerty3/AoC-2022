@@ -222,22 +222,27 @@ fn perform_cube_instruction(instruction: &Instruction, current_pos: &mut (usize,
                         _ => panic!(),
                     };
 
-                    // getting a bit hacky here
+                    // this is your relative position within the current square,
+                    // for the direction you are not currently moving in. You
+                    // should be in the equivalent relative position after the
+                    // move.
+                    // for the right (0) side, it's how far you are from top right
+                    // for the bottom (1) side, it's how far you are from bottom right 
+                    // for the left (2) side, it's how far you are from bottom left
+                    // for the top (3) side, it's how far you are from top left
                     let mut current_minor_relative_pos = match current_direction {
-                        0 | 2 => current_pos.1 % block_size,
-                        1 | 3 => current_pos.0 % block_size,
+                        0 => current_pos.1 % block_size,
+                        1 => block_size - (current_pos.0 % block_size) - 1,
+                        2 => block_size - (current_pos.1 % block_size) - 1,
+                        3 => current_pos.0 % block_size,
                         _ => panic!(),
                     };
 
-                    // experimentally determined algorithm
-                    // conditionally flip relative pos (it is flipped again later)
-                    if *current_direction + ((next_direction + 2) % 4) as i32 == 5 || *current_direction + ((next_direction + 2) % 4) as i32 == 1 || (current_pos.1 as i32 == ((block_size as i32 * 4) - 1) && *current_direction == 1) || (current_pos.1 == 0 && current_pos.0 >= 100 && *current_direction == 3) {
-                        current_minor_relative_pos = (block_size as i32 - current_minor_relative_pos as i32 - 1) as usize;
-                    }
-
                     let next_minor_pos = match next_direction {
-                        0 | 2 => (next_grid_index / horizontal_blocks) * block_size + (block_size - current_minor_relative_pos - 1),
-                        1 | 3 => (next_grid_index % horizontal_blocks) * block_size + (block_size - current_minor_relative_pos - 1),
+                        0 => (next_grid_index / horizontal_blocks) * block_size + current_minor_relative_pos,
+                        1 => (next_grid_index % horizontal_blocks) * block_size + (block_size - current_minor_relative_pos - 1),
+                        2 => (next_grid_index / horizontal_blocks) * block_size + (block_size - current_minor_relative_pos - 1),
+                        3 => (next_grid_index % horizontal_blocks) * block_size + current_minor_relative_pos,
                         _ => panic!(),
                     };
 
@@ -252,10 +257,6 @@ fn perform_cube_instruction(instruction: &Instruction, current_pos: &mut (usize,
                         },
                         _ => panic!(),
                     };
-                    //println!("current_pos = {:?}", current_pos);
-                    //println!("current_minor_relative_pos = {}", current_minor_relative_pos);
-                    //println!("current_minor_relative_pos = {}", current_minor_relative_pos);
-                    //println!("proposing new_x = {} new_y = {}", proposed_new_x, proposed_new_y);
 
                     proposed_new_direction = next_direction as i32;
                 }
@@ -267,7 +268,6 @@ fn perform_cube_instruction(instruction: &Instruction, current_pos: &mut (usize,
 
                 *current_pos = proposed_new_location;
                 *current_direction = proposed_new_direction;
-                println!("moving to {:?} facing {}", current_pos, current_direction)
             }
         },
     }
@@ -342,7 +342,6 @@ fn build_grid_index_to_cube_face(rows: &Vec<Range<usize>>) -> HashMap<usize, Fac
     let min_side = std::cmp::min(max_x, max_y);
     let block_size = min_side / 3;
     let horizontal_blocks = max_x / block_size;
-    println!("block_size = {} horizontal_blocks = {}", block_size, horizontal_blocks);
 
     let start = (rows[0].start, 0);
     
