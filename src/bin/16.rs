@@ -165,34 +165,33 @@ fn get_dual_neighbors(node: &(String, u32, String, u32), map: &HashMap<String, V
     let mut ret: Vec<(String, u32, String, u32)> = Vec::new();
     let a_key = node.0[node.0.len() - 2..].to_owned();
     let b_key = node.2[node.2.len() - 2..].to_owned();
-    let mut doubles_ever = false;
 
     // neighbors where both move
-    let a_neighbors = map[&a_key].iter()
-        .filter(|neighbor| node.0.find(&neighbor.0).is_none() && node.2.find(&neighbor.0).is_none())
-        .filter(|neighbor| node.1 + neighbor.1 < 26); 
-    for a_neighbor in a_neighbors {
-        let mut new_a_path = node.0.clone();
-        new_a_path.push_str("|");
-        new_a_path.push_str(&a_neighbor.0);
-        
-        let b_neighbors = map[&b_key].iter()
-            .filter(|neighbor| new_a_path.find(&neighbor.0).is_none() && node.2.find(&neighbor.0).is_none())
-            .filter(|neighbor| node.3 + neighbor.1 < 26);
-        for b_neighbor in b_neighbors {
-            let mut new_b_path = node.2.clone();
-            new_b_path.push_str("|");
-            new_b_path.push_str(&b_neighbor.0);
-            ret.push((new_a_path.clone(), node.1 + a_neighbor.1, new_b_path.clone(), node.3 + b_neighbor.1));
-            doubles_ever = true;
-        }
-    }
+    // let a_neighbors = map[&a_key].iter()
+    //     .filter(|neighbor| node.0.find(&neighbor.0).is_none() && node.2.find(&neighbor.0).is_none())
+    //     .filter(|neighbor| node.1 + neighbor.1 < 26); 
+    // for a_neighbor in a_neighbors {
+    //     let mut new_a_path = node.0.clone();
+    //     new_a_path.push_str("|");
+    //     new_a_path.push_str(&a_neighbor.0);
+    //     
+    //     let b_neighbors = map[&b_key].iter()
+    //         .filter(|neighbor| new_a_path.find(&neighbor.0).is_none() && node.2.find(&neighbor.0).is_none())
+    //         .filter(|neighbor| node.3 + neighbor.1 < 26);
+    //     for b_neighbor in b_neighbors {
+    //         let mut new_b_path = node.2.clone();
+    //         new_b_path.push_str("|");
+    //         new_b_path.push_str(&b_neighbor.0);
+    //         ret.push((new_a_path.clone(), node.1 + a_neighbor.1, new_b_path.clone(), node.3 + b_neighbor.1));
+    //     }
+    // }
 
     // proposal: if any "double" move exists, it is never beneifical to only make one move
     // likely not true in the general case, would need more checks
-    if doubles_ever {
-        return ret;
-    }
+    // this proposal seems false
+    // if doubles_ever {
+    //     return ret;
+    // }
 
     // neighbors where one moves
     let a_neighbors = map[&a_key].iter().filter(|neighbor| node.0.find(&neighbor.0).is_none() && node.2.find(&neighbor.0).is_none());
@@ -252,7 +251,9 @@ fn dual_search(start: String, map: &HashMap<String, Vec<(String, u32)>>, flow_ma
 
         for neighbor in get_dual_neighbors(&current, map) {
             let reorganized_neighbor = reorganize_node(neighbor.clone());
-            let new_actual_cost = actual_cost.get(&reorganized_current).unwrap() + get_dual_cost(&current, &neighbor, flow_map);
+            let dual_cost = get_dual_cost(&current, &neighbor, flow_map);
+            let new_actual_cost = actual_cost.get(&reorganized_current).unwrap() + dual_cost;
+
             if new_actual_cost < actual_cost.get(&reorganized_neighbor).cloned().unwrap_or(i32::MAX) {
                 actual_cost.insert(reorganized_neighbor.clone(), new_actual_cost);
                 open_set.insert(neighbor.clone());
