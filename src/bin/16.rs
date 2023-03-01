@@ -51,7 +51,7 @@ fn get_best_option(open_set: &HashSet<u64>, distance: &HashMap<u64, u64>) -> u64
     open_set.iter().min_by(|a, b| distance[a].clone().cmp(&distance[b].clone())).unwrap().clone()
 }
 
-fn search_dist(start: u64, end: u64, map: &HashMap<u64, Vec<u64>>, flow_map: &HashMap<u64, u64>) -> Option<u64> {
+fn search_dist(start: u64, end: u64, map: &HashMap<u64, Vec<u64>>) -> Option<u64> {
     let mut distance: HashMap<u64, u64> = HashMap::new();
     let mut open_set: HashSet<u64> = HashSet::new();
     open_set.insert(start);
@@ -112,7 +112,7 @@ pub fn part_one(input: &str) -> Option<i32> {
 
     viable_paths.insert(start, Vec::new());
     for option in &viable_options {
-        let start_dist = search_dist(start, *option, &options_map, &flow_map);
+        let start_dist = search_dist(start, *option, &options_map);
         viable_paths.insert(option.clone(), Vec::new());
         if let Some(start_dist) = start_dist {
             viable_paths.get_mut(&start).unwrap().push((option.clone(), start_dist));
@@ -122,7 +122,7 @@ pub fn part_one(input: &str) -> Option<i32> {
             if option == other {
                 continue;
             }
-            let option_dist = search_dist(*option, *other, &options_map, &flow_map);
+            let option_dist = search_dist(*option, *other, &options_map);
             if let Some(option_dist) = option_dist {
                 viable_paths.get_mut(option).unwrap().push((other.clone(), option_dist));
             }
@@ -133,8 +133,8 @@ pub fn part_one(input: &str) -> Option<i32> {
 }
 
 fn get_dual_cost(current: &(u64, u64, u64, u64, u64, u64), neighbor: &(u64, u64, u64, u64, u64, u64), flow_map: &HashMap<u64, u64>) -> i32 {
-    let mut a_rate = flow_map[&current.2];
-    let mut b_rate = flow_map[&current.5];
+    let mut a_rate = flow_map[&neighbor.2];
+    let mut b_rate = flow_map[&neighbor.5];
 
     let a_same = current.2 == neighbor.2;
     let b_same = current.5 == neighbor.5;
@@ -179,6 +179,7 @@ fn dual_search(start: u64, map: &HashMap<u64, Vec<(u64, u64)>>, flow_map: &HashM
     let mut open_set: HashSet<(u64, u64, u64, u64, u64, u64)> = HashSet::new();
     let mut actual_cost: HashMap<(u64, u64, u64, u64, u64, u64), i32> = HashMap::new();
     let mut best_path_flow = 0;
+    let mut best_path = (start, 0, start, start, 0, start);
     open_set.insert((start, 0, start, start, 0, start));
     actual_cost.insert((start, 0, start, start, 0, start), 0);
 
@@ -195,11 +196,14 @@ fn dual_search(start: u64, map: &HashMap<u64, Vec<(u64, u64)>>, flow_map: &HashM
                 open_set.insert(neighbor.clone());
                 if new_actual_cost < best_path_flow {
                     best_path_flow = new_actual_cost;
+                    best_path = neighbor.clone();
                     println!("new best_path_flow = {}", best_path_flow);
                 }
             }
         }
     }
+
+    println!("{:?}", best_path);
 
     -best_path_flow
 }
@@ -214,11 +218,10 @@ pub fn part_two(input: &str) -> Option<i32> {
         .map(|option| option.0.clone()).collect();
 
     let mut viable_paths: HashMap<u64, Vec<(u64, u64)>> = HashMap::new();
-
     viable_paths.insert(start, Vec::new());
 
     for option in &viable_options {
-        let start_dist = search_dist(start, *option, &options_map, &flow_map);
+        let start_dist = search_dist(start, *option, &options_map);
         viable_paths.insert(option.clone(), Vec::new());
 
         if let Some(start_dist) = start_dist {
@@ -229,7 +232,7 @@ pub fn part_two(input: &str) -> Option<i32> {
             if option == other {
                 continue;
             }
-            let option_dist = search_dist(*option, *other, &options_map, &flow_map);
+            let option_dist = search_dist(*option, *other, &options_map);
             if let Some(option_dist) = option_dist {
                 viable_paths.get_mut(option).unwrap().push((other.clone(), option_dist));
             }
