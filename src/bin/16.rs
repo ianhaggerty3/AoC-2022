@@ -132,7 +132,7 @@ pub fn part_one(input: &str) -> Option<i32> {
     Some(search(start, &viable_paths, &flow_map))
 }
 
-fn get_dual_cost(current: &(u64, u64, u64, u64, u64, u64), neighbor: &(u64, u64, u64, u64, u64, u64), flow_map: &HashMap<u64, u64>) -> i32 {
+fn get_dual_cost(current: &(u64, u64, u64, u64, u64, u64), neighbor: &(u64, u64, u64, u64, u64, u64), flow_map: &HashMap<u64, u64>) -> (i32, i32) {
     let mut a_rate = flow_map[&neighbor.2];
     let mut b_rate = flow_map[&neighbor.5];
 
@@ -147,7 +147,7 @@ fn get_dual_cost(current: &(u64, u64, u64, u64, u64, u64), neighbor: &(u64, u64,
         b_rate = 0;
     }
 
-    -(a_rate as i32 * (26 - neighbor.1) as i32) + -(b_rate as i32 * (26 - neighbor.4) as i32)
+    (-(a_rate as i32 * (26 - neighbor.1) as i32), -(b_rate as i32 * (26 - neighbor.4) as i32))
 }
 
 fn get_dual_neighbors(node: &(u64, u64, u64, u64, u64, u64), map: &HashMap<u64, Vec<(u64, u64)>>) -> Vec<(u64, u64, u64, u64, u64, u64)> {
@@ -175,35 +175,89 @@ fn get_dual_neighbors(node: &(u64, u64, u64, u64, u64, u64), map: &HashMap<u64, 
     ret
 }
 
+// updates best_paths because I'm lazy
+fn is_optimal(node: (u64, u64), round: u64, cost: i32, best_paths: &mut HashMap<(u64, u64), Vec<(u64, i32)>>) -> bool {
+
+    let mut result = best_paths.get_mut(&node);
+
+    if let Some(result) = result {
+        let mut to_remove = Vec::new();
+
+        for (i, optimal) in result.iter().enumerate() {
+            // play it safe for equals
+            if round == optimal.0 && cost == optimal.1 {
+                return true;
+            }
+
+            // if strictly dominated by anything, don't add
+            if round >= optimal.0 && cost >= optimal.1 {
+                return false;
+            }
+
+            // if anything is strictly dominated by it, remove it
+            if round < optimal.0 && cost < optimal.1 {
+                to_remove.push(i);
+            }
+        }
+
+        // please don't make fun of me
+        for i in to_remove.iter().rev() {
+            result.remove(*i);
+        }
+
+        result.push((round, cost));
+    } else {
+        best_paths.insert(node, Vec::from([(round, cost)]));
+    }
+
+    let result = best_paths.get(&node).unwrap();
+
+    true
+}
+
 fn dual_search(start: u64, map: &HashMap<u64, Vec<(u64, u64)>>, flow_map: &HashMap<u64, u64>) -> i32 {
     let mut open_set: HashSet<(u64, u64, u64, u64, u64, u64)> = HashSet::new();
-    let mut actual_cost: HashMap<(u64, u64, u64, u64, u64, u64), i32> = HashMap::new();
+    let mut actual_cost: HashMap<(u64, u64, u64, u64, u64, u64), (i32, i32)> = HashMap::new();
     let mut best_path_flow = 0;
-    let mut best_path = (start, 0, start, start, 0, start);
+    // key is (path, current). value is the list of optimal pairs of (round, cost) 
+    // a new node needs to not be strictly dominated by one of the optimal nodes to make it into
+    // the list
+    let mut best_paths: HashMap<(u64, u64), Vec<(u64, i32)>> = HashMap::new();
+
     open_set.insert((start, 0, start, start, 0, start));
-    actual_cost.insert((start, 0, start, start, 0, start), 0);
+    actual_cost.insert((start, 0, start, start, 0, start), (0, 0));
 
     while !open_set.is_empty() {
         let current = open_set.iter().next().unwrap().clone();
         open_set.remove(&current);
 
         for neighbor in get_dual_neighbors(&current, map) {
-            let dual_cost = get_dual_cost(&current, &neighbor, flow_map);
-            let new_actual_cost = actual_cost.get(&current).unwrap() + dual_cost;
+            let (a_cost, b_cost) = get_dual_cost(&current, &neighbor, flow_map);
 
-            if new_actual_cost < actual_cost.get(&neighbor).cloned().unwrap_or(i32::MAX) {
-                actual_cost.insert(neighbor.clone(), new_actual_cost);
+            let (current_a_cost, current_b_cost) = actual_cost.get(&current).unwrap();
+            let new_a_cost = current_a_cost + a_cost;
+            let new_b_cost = current_b_cost + b_cost;
+
+            if current.0 != neighbor.0 && !is_optimal((neighbor.0, neighbor.2), neighbor.1, new_a_cost, &mut best_paths) {
+                continue;
+            }
+
+            if current.3 != neighbor.3 && !is_optimal((neighbor.3, neighbor.5), neighbor.4, new_b_cost, &mut best_paths) {
+                continue;
+            }
+
+            let (existing_a_cost, existing_b_cost) = actual_cost.get(&neighbor).cloned().unwrap_or((1, 1));
+
+            if new_a_cost + new_b_cost < existing_a_cost + existing_b_cost {
+                actual_cost.insert(neighbor.clone(), (new_a_cost, new_b_cost));
                 open_set.insert(neighbor.clone());
-                if new_actual_cost < best_path_flow {
-                    best_path_flow = new_actual_cost;
-                    best_path = neighbor.clone();
+                if new_a_cost + new_b_cost < best_path_flow {
+                    best_path_flow = new_a_cost + new_b_cost;
                     println!("new best_path_flow = {}", best_path_flow);
                 }
             }
         }
     }
-
-    println!("{:?}", best_path);
 
     -best_path_flow
 }
