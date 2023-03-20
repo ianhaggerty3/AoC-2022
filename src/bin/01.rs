@@ -2,19 +2,21 @@ use std::cmp;
 use std::thread::current;
 
 pub fn part_one(input: &str) -> Option<u32> {
-    let mut maxCalories= 0;
-    let mut currentCalories = 0;
+    let mut v: Vec<u32> = Vec::new();
 
+    let mut currentCalories = 0;
     for line in input.lines() {
         if line.is_empty() {
-            maxCalories = cmp::max(maxCalories, currentCalories);
+            v.push(currentCalories);
             currentCalories = 0;
             continue;
         }
         currentCalories += line.parse::<u32>().unwrap();
     }
 
-    Some(cmp::max(maxCalories, currentCalories))
+    v.sort();
+    v.reverse();
+    Some(*v.get(0).unwrap())
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
