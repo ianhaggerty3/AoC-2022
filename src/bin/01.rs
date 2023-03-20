@@ -1,6 +1,18 @@
 use std::cmp;
 use std::thread::current;
 
+fn get_max_values(v: &mut Vec<u32>, n: usize) -> u32 {
+    v.sort();
+    v.reverse();
+
+    let mut sum: u32 = 0;
+    for i in 0..n {
+        sum += v.get(i).unwrap().clone();
+    }
+
+    sum
+}
+
 pub fn part_one(input: &str) -> Option<u32> {
     let mut v: Vec<u32> = Vec::new();
 
@@ -14,9 +26,7 @@ pub fn part_one(input: &str) -> Option<u32> {
         currentCalories += line.parse::<u32>().unwrap();
     }
 
-    v.sort();
-    v.reverse();
-    Some(*v.get(0).unwrap())
+    Some(get_max_values(&mut v, 1))
 }
 
 pub fn part_two(input: &str) -> Option<u32> {
@@ -32,9 +42,7 @@ pub fn part_two(input: &str) -> Option<u32> {
         currentCalories += line.parse::<u32>().unwrap();
     }
 
-    v.sort();
-    v.reverse();
-    Some(v.get(0).unwrap() + v.get(1).unwrap() + v.get(2).unwrap())
+    Some(get_max_values(&mut v, 3))
 }
 
 fn main() {
